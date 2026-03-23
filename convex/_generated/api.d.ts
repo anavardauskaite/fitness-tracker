@@ -9,8 +9,10 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as bodyMeasurements from "../bodyMeasurements.js";
 import type * as http from "../http.js";
-import type * as myFunctions from "../myFunctions.js";
+import type * as running from "../running.js";
+import type * as workouts from "../workouts.js";
 
 import type {
   ApiFromModules,
@@ -20,8 +22,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  bodyMeasurements: typeof bodyMeasurements;
   http: typeof http;
-  myFunctions: typeof myFunctions;
+  running: typeof running;
+  workouts: typeof workouts;
 }>;
 
 /**
