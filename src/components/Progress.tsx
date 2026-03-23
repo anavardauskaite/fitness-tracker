@@ -46,7 +46,7 @@ export function Progress() {
   const bodyHistory = useQuery(api.bodyMeasurements.getAll);
   const runningHistory = useQuery(api.running.getAll);
 
-  const filterByTimeRange = <T extends { date?: string }>(
+  const filterByTimeRange = <T extends object>(
     items: T[] | undefined,
     dateGetter: (item: T) => string | undefined
   ): T[] => {
