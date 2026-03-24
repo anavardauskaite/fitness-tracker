@@ -1,13 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { getExercisesForDay, type Exercise } from "../data/exercises";
 
 function getYouTubeEmbedUrl(url: string): string {
-  // Handle youtube.com/shorts/ID
   const shortsMatch = url.match(/youtube\.com\/shorts\/([^?&/]+)/);
   if (shortsMatch) return `https://www.youtube.com/embed/${shortsMatch[1]}`;
-  // Handle youtube.com/watch?v=ID
   const watchMatch = url.match(/[?&]v=([^?&/]+)/);
   if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
   return url;
@@ -66,6 +64,86 @@ function VideoModal({
   );
 }
 
+const REST_DURATION = 90; // seconds
+
+function RestTimer({ onDismiss }: { onDismiss: () => void }) {
+  const [seconds, setSeconds] = useState(REST_DURATION);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      setSeconds((prev) => {
+        if (prev <= 1) {
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  const pct = (seconds / REST_DURATION) * 100;
+  const done = seconds === 0;
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-md">
+      <div
+        className={`rounded-2xl p-4 border shadow-xl backdrop-blur-sm ${
+          done
+            ? "bg-green-900/90 border-green-700/50"
+            : "bg-zinc-800/95 border-zinc-700/50"
+        }`}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-zinc-300">
+            {done ? "Rest complete!" : "Rest timer"}
+          </span>
+          <button
+            onClick={onDismiss}
+            className="text-zinc-400 hover:text-white text-sm px-2 py-0.5 rounded-lg hover:bg-zinc-700/50 transition-colors"
+          >
+            {done ? "OK" : "Skip"}
+          </button>
+        </div>
+        <div className="flex items-center gap-3">
+          <span
+            className={`text-2xl font-mono font-bold tabular-nums ${
+              done ? "text-green-400" : seconds <= 10 ? "text-amber-400" : "text-white"
+            }`}
+          >
+            {mins}:{secs.toString().padStart(2, "0")}
+          </span>
+          <div className="flex-1 h-2 bg-zinc-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-1000 ${
+                done
+                  ? "bg-green-500"
+                  : seconds <= 10
+                    ? "bg-amber-500"
+                    : "bg-violet-500"
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PRBadge({ type }: { type: "weight" | "reps" }) {
+  return (
+    <span className="pr-glow inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-400/15 px-1.5 py-0.5 rounded-full">
+      PR {type === "weight" ? "wt" : "reps"}
+    </span>
+  );
+}
+
 interface SetData {
   reps: string;
   weight: string;
@@ -81,9 +159,12 @@ export function WorkoutTracker() {
   const [videoExercise, setVideoExercise] = useState<Exercise | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showTimer, setShowTimer] = useState(false);
+  const [newPRs, setNewPRs] = useState<string[]>([]);
 
   const exercises = getExercisesForDay(day);
   const latestSession = useQuery(api.workouts.getLatestSession, { day });
+  const personalRecords = useQuery(api.workouts.getPersonalRecords, { day });
   const saveWorkout = useMutation(api.workouts.saveWorkout);
 
   const getLastSets = (exerciseName: string) => {
@@ -101,6 +182,11 @@ export function WorkoutTracker() {
     return { sets: [{ reps: "", weight: "" }, { reps: "", weight: "" }, { reps: "", weight: "" }] };
   };
 
+  const startRestTimer = () => {
+    setShowTimer(false);
+    setTimeout(() => setShowTimer(true), 50);
+  };
+
   const updateSet = (
     exerciseName: string,
     setIndex: number,
@@ -114,6 +200,21 @@ export function WorkoutTracker() {
       ...prev,
       [exerciseName]: { sets: newSets },
     }));
+  };
+
+  // Check for PRs in current form data
+  const checkPR = (exerciseName: string, setIndex: number): { weight: boolean; reps: boolean } => {
+    const pr = personalRecords?.[exerciseName];
+    if (!pr) return { weight: false, reps: false };
+
+    const current = getFormData(exerciseName).sets[setIndex];
+    const w = Number(current.weight);
+    const r = Number(current.reps);
+
+    return {
+      weight: w > 0 && w > pr.maxWeight,
+      reps: r > 0 && r > pr.maxReps,
+    };
   };
 
   const handleSave = async () => {
@@ -137,6 +238,20 @@ export function WorkoutTracker() {
         return;
       }
 
+      // Detect PRs before saving
+      const detectedPRs: string[] = [];
+      for (const entry of exerciseEntries) {
+        const pr = personalRecords?.[entry.exerciseName];
+        if (!pr) continue;
+        for (const set of entry.sets) {
+          if (set.weight > pr.maxWeight || set.reps > pr.maxReps) {
+            detectedPRs.push(entry.exerciseName);
+            break;
+          }
+        }
+      }
+      setNewPRs(detectedPRs);
+
       await saveWorkout({
         day,
         date: new Date().toISOString().split("T")[0],
@@ -146,8 +261,12 @@ export function WorkoutTracker() {
 
       setFormData({});
       setComment("");
+      setShowTimer(false);
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      setTimeout(() => {
+        setSaved(false);
+        setNewPRs([]);
+      }, 5000);
     } finally {
       setSaving(false);
     }
@@ -158,6 +277,8 @@ export function WorkoutTracker() {
     setFormData({});
     setComment("");
     setSaved(false);
+    setShowTimer(false);
+    setNewPRs([]);
   };
 
   return (
@@ -197,11 +318,12 @@ export function WorkoutTracker() {
         {exercises.map((exercise) => {
           const lastSets = getLastSets(exercise.name);
           const current = getFormData(exercise.name);
+          const pr = personalRecords?.[exercise.name];
 
           return (
             <div
               key={exercise.name}
-              className="bg-zinc-800/60 rounded-xl p-4 border border-zinc-700/50"
+              className="bg-zinc-800/60 rounded-xl p-4 border border-zinc-700/50 transition-all hover:border-zinc-600/60 hover:bg-zinc-800/80"
             >
               <button
                 onClick={() => setVideoExercise(exercise)}
@@ -213,6 +335,11 @@ export function WorkoutTracker() {
                     &#9654; video
                   </span>
                 </h3>
+                {pr && (
+                  <p className="text-zinc-500 text-xs mt-1">
+                    PR: {pr.maxWeight}kg &middot; {pr.maxReps} reps
+                  </p>
+                )}
               </button>
 
               {/* Set inputs with last stats inline */}
@@ -225,46 +352,60 @@ export function WorkoutTracker() {
                 {current.sets.map((set, i) => {
                   const lastReps = lastSets?.[i]?.reps;
                   const lastWeight = lastSets?.[i]?.weight;
+                  const prCheck = checkPR(exercise.name, i);
                   return (
-                    <div
-                      key={i}
-                      className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center"
-                    >
-                      <span className="text-zinc-500 text-sm w-8 text-center">
-                        {i + 1}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          placeholder={lastReps?.toString() ?? "12"}
-                          value={set.reps}
-                          onChange={(e) =>
-                            updateSet(exercise.name, i, "reps", e.target.value)
-                          }
-                          className="w-full bg-zinc-700/50 border border-zinc-600/50 rounded-lg px-3 py-2 text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50"
-                        />
-                        {lastReps != null && (
-                          <span className="text-zinc-500 text-xs whitespace-nowrap">
-                            {lastReps}
-                          </span>
-                        )}
+                    <div key={i}>
+                      <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                        <span className="text-zinc-500 text-sm w-8 text-center">
+                          {i + 1}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            placeholder={lastReps?.toString() ?? "12"}
+                            value={set.reps}
+                            onChange={(e) =>
+                              updateSet(exercise.name, i, "reps", e.target.value)
+                            }
+                            className={`w-full bg-zinc-700/50 border rounded-lg px-3 py-2 text-white text-sm placeholder:text-zinc-600 focus:outline-none transition-colors ${
+                              prCheck.reps
+                                ? "border-amber-400/70 bg-amber-400/5"
+                                : "border-zinc-600/50 focus:border-violet-500/50"
+                            }`}
+                          />
+                          {lastReps != null && (
+                            <span className="text-zinc-500 text-xs whitespace-nowrap">
+                              {lastReps}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            placeholder={lastWeight?.toString() ?? "0"}
+                            value={set.weight}
+                            onChange={(e) =>
+                              updateSet(exercise.name, i, "weight", e.target.value)
+                            }
+                            className={`w-full bg-zinc-700/50 border rounded-lg px-3 py-2 text-white text-sm placeholder:text-zinc-600 focus:outline-none transition-colors ${
+                              prCheck.weight
+                                ? "border-amber-400/70 bg-amber-400/5"
+                                : "border-zinc-600/50 focus:border-violet-500/50"
+                            }`}
+                          />
+                          {lastWeight != null && (
+                            <span className="text-zinc-500 text-xs whitespace-nowrap">
+                              {lastWeight}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          placeholder={lastWeight?.toString() ?? "0"}
-                          value={set.weight}
-                          onChange={(e) =>
-                            updateSet(exercise.name, i, "weight", e.target.value)
-                          }
-                          className="w-full bg-zinc-700/50 border border-zinc-600/50 rounded-lg px-3 py-2 text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50"
-                        />
-                        {lastWeight != null && (
-                          <span className="text-zinc-500 text-xs whitespace-nowrap">
-                            {lastWeight}
-                          </span>
-                        )}
-                      </div>
+                      {(prCheck.weight || prCheck.reps) && (
+                        <div className="flex gap-1.5 mt-1 ml-10">
+                          {prCheck.weight && <PRBadge type="weight" />}
+                          {prCheck.reps && <PRBadge type="reps" />}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -275,7 +416,7 @@ export function WorkoutTracker() {
       </div>
 
       {/* Comment */}
-      <div className="bg-zinc-800/60 rounded-xl p-4 border border-zinc-700/50">
+      <div className="bg-zinc-800/60 rounded-xl p-4 border border-zinc-700/50 transition-all hover:border-zinc-600/60 hover:bg-zinc-800/80">
         <label className="text-sm text-zinc-400 block mb-2">
           Workout notes
         </label>
@@ -287,6 +428,25 @@ export function WorkoutTracker() {
           className="w-full bg-zinc-700/50 border border-zinc-600/50 rounded-lg px-3 py-2 text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 resize-none"
         />
       </div>
+
+      {/* PR Summary after save */}
+      {saved && newPRs.length > 0 && (
+        <div className="bg-amber-400/10 border border-amber-400/30 rounded-xl p-4">
+          <p className="text-amber-400 font-medium text-sm mb-1">
+            New Personal Records!
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {newPRs.map((name) => (
+              <span
+                key={name}
+                className="text-xs bg-amber-400/15 text-amber-300 px-2 py-0.5 rounded-full"
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Save Button */}
       <button
@@ -300,6 +460,21 @@ export function WorkoutTracker() {
       >
         {saving ? "Saving..." : saved ? "Saved!" : "Save Workout"}
       </button>
+
+      {/* Floating Rest Timer Button + Timer */}
+      {showTimer ? (
+        <RestTimer onDismiss={() => setShowTimer(false)} />
+      ) : (
+        <button
+          onClick={startRestTimer}
+          className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/30 flex items-center justify-center transition-all active:scale-95"
+          title="Start rest timer"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+        </button>
+      )}
 
       {/* Video Modal */}
       {videoExercise && (

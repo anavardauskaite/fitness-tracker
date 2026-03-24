@@ -14,13 +14,17 @@ type Tab = "workouts" | "running" | "body" | "progress";
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-zinc-900 text-white">
-      <Authenticated>
-        <MainApp />
-      </Authenticated>
-      <Unauthenticated>
-        <SignInForm />
-      </Unauthenticated>
+    <div className="relative min-h-screen bg-[#0f0f12] text-white overflow-hidden">
+      {/* Ambient gradient blob */}
+      <div className="pointer-events-none fixed top-[-20%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-violet-600/8 rounded-full blur-[120px]" />
+      <div className="relative z-10">
+        <Authenticated>
+          <MainApp />
+        </Authenticated>
+        <Unauthenticated>
+          <SignInForm />
+        </Unauthenticated>
+      </div>
     </div>
   );
 }
@@ -33,10 +37,17 @@ function MainApp() {
     <div className="max-w-lg mx-auto px-4 py-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">Fitness Tracker</h1>
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center shadow-lg shadow-violet-600/20">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-white">
+              <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <h1 className="text-lg font-bold text-white tracking-tight">Fitness Tracker</h1>
+        </div>
         <button
           onClick={() => void signOut()}
-          className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+          className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors"
         >
           Sign out
         </button>
@@ -89,10 +100,17 @@ function SignInForm() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-white text-center mb-2">
+        <div className="flex justify-center mb-5">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center shadow-xl shadow-violet-600/25">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-7 h-7 text-white">
+              <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
+        <h1 className="text-2xl font-bold text-white text-center mb-1 tracking-tight">
           Fitness Tracker
         </h1>
-        <p className="text-zinc-500 text-center mb-8">
+        <p className="text-zinc-500 text-center mb-8 text-sm">
           {flow === "signIn" ? "Welcome back" : "Create your account"}
         </p>
 
