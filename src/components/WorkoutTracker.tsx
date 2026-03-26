@@ -410,7 +410,7 @@ export function WorkoutTracker() {
                         </span>
                         <div className="flex items-center gap-2">
                           <input
-                            type="number"
+                            type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
                             placeholder={lastReps?.toString() ?? "12"}
                             value={set.reps}
                             onChange={(e) =>
@@ -431,7 +431,7 @@ export function WorkoutTracker() {
                         {!exercise.repsOnly && (
                           <div className="flex items-center gap-2">
                             <input
-                              type="number"
+                              type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
                               placeholder={lastWeight?.toString() ?? "0"}
                               value={set.weight}
                               onChange={(e) =>

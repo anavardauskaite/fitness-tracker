@@ -57,7 +57,7 @@ export function RunningTracker() {
           </label>
           <div className="flex items-center gap-2">
             <input
-              type="number"
+              type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
               step="0.1"
               placeholder={latest?.time?.toString() ?? "30"}
               value={time}
@@ -78,7 +78,7 @@ export function RunningTracker() {
           </label>
           <div className="flex items-center gap-2">
             <input
-              type="number"
+              type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
               step="0.1"
               placeholder={latest?.distance?.toString() ?? "5"}
               value={distance}
@@ -99,7 +99,7 @@ export function RunningTracker() {
           </label>
           <div className="flex items-center gap-2">
             <input
-              type="number"
+              type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*"
               placeholder={latest?.avgHeartRate?.toString() ?? "140"}
               value={heartRate}
               onChange={(e) => setHeartRate(e.target.value)}

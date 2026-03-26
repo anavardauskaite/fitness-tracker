@@ -30,15 +30,9 @@ body::before {
   animation: pr-pulse 2s ease-in-out infinite;
 }
 
-/* Number input spinner removal */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
+/* Prevent text selection highlight on inputs */
+input[inputmode="decimal"] {
   -webkit-appearance: none;
-  margin: 0;
-}
-
-input[type="number"] {
-  -moz-appearance: textfield;
 }
 
 /* Date input styling for dark mode */
