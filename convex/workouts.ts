@@ -93,11 +93,36 @@ export const saveWorkout = mutation({
   },
 });
 
+export const deleteSession = mutation({
+  args: { sessionId: v.id("workoutSessions") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== identity.tokenIdentifier) {
+      throw new Error("Session not found");
+    }
+
+    // Delete all exercise logs for this session
+    const logs = await ctx.db
+      .query("exerciseLogs")
+      .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+      .take(50);
+
+    for (const log of logs) {
+      await ctx.db.delete(log._id);
+    }
+
+    await ctx.db.delete(args.sessionId);
+  },
+});
+
 export const getPersonalRecords = query({
   args: { day: v.number() },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return {};
+    if (!identity) return [];
 
     // Get all sessions for this day
     const sessions = await ctx.db
@@ -131,7 +156,12 @@ export const getPersonalRecords = query({
       }
     }
 
-    return prs;
+    // Return as array to avoid Convex restriction on non-ASCII object keys
+    return Object.entries(prs).map(([name, data]) => ({
+      exerciseName: name,
+      maxWeight: data.maxWeight,
+      maxReps: data.maxReps,
+    }));
   },
 });
 

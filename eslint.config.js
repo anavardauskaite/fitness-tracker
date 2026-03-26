@@ -77,4 +77,9 @@ export default defineConfig([
     },
   },
   ...convexPlugin.configs.recommended,
+  {
+    rules: {
+      "@convex-dev/explicit-table-ids": "off",
+    },
+  },
 ]);

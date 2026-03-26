@@ -1,6 +1,7 @@
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useState } from "react";
+import type { Id } from "../../convex/_generated/dataModel";
 
 type TimeRange = "week" | "month" | "all";
 
@@ -32,6 +33,156 @@ function ProgressBar({
           style={{ width: `${pct}%` }}
         />
       </div>
+    </div>
+  );
+}
+
+function WorkoutHistory() {
+  const [historyDay, setHistoryDay] = useState<1 | 2>(1);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const allSessions = useQuery(api.workouts.getSessionHistory, { day: historyDay });
+  const deleteSession = useMutation(api.workouts.deleteSession);
+
+  const handleDelete = async (sessionId: Id<"workoutSessions">) => {
+    setDeleting(true);
+    try {
+      await deleteSession({ sessionId });
+      setConfirmDeleteId(null);
+      setExpandedId(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="bg-zinc-800/60 rounded-xl p-4 border border-zinc-700/50">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-white font-medium">Workout History</h3>
+        <div className="flex gap-1">
+          <button
+            onClick={() => { setHistoryDay(1); setExpandedId(null); setConfirmDeleteId(null); }}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+              historyDay === 1
+                ? "bg-violet-600/30 text-violet-300"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            Front
+          </button>
+          <button
+            onClick={() => { setHistoryDay(2); setExpandedId(null); setConfirmDeleteId(null); }}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+              historyDay === 2
+                ? "bg-violet-600/30 text-violet-300"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            Back
+          </button>
+        </div>
+      </div>
+
+      {allSessions && allSessions.length > 0 ? (
+        <div className="space-y-2">
+          {allSessions.map(({ session, logs }) => {
+            const isExpanded = expandedId === session._id;
+            const isConfirming = confirmDeleteId === session._id;
+
+            return (
+              <div
+                key={session._id}
+                className="border border-zinc-700/50 rounded-lg overflow-hidden"
+              >
+                <button
+                  onClick={() => {
+                    setExpandedId(isExpanded ? null : session._id);
+                    setConfirmDeleteId(null);
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-zinc-700/30 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-300 text-sm font-medium">
+                      {session.date}
+                    </span>
+                    <span className="text-zinc-500 text-xs">
+                      {logs.length} exercises
+                    </span>
+                  </div>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className={`w-4 h-4 text-zinc-500 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                  >
+                    <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                  </svg>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-3 pb-3 space-y-3">
+                    {session.comment && (
+                      <p className="text-zinc-500 text-xs italic">{session.comment}</p>
+                    )}
+
+                    <div className="space-y-2">
+                      {logs.map((log) => (
+                        <div key={log._id} className="bg-zinc-700/30 rounded-lg p-2.5">
+                          <span className="text-zinc-300 text-xs font-medium block mb-1.5">
+                            {log.exerciseName}
+                          </span>
+                          <div className="grid grid-cols-3 gap-1 text-xs">
+                            <span className="text-zinc-500">Set</span>
+                            <span className="text-zinc-500">Reps</span>
+                            <span className="text-zinc-500">Weight</span>
+                            {log.sets.map((set, i) => (
+                              <div key={i} className="contents">
+                                <span className="text-zinc-400">{i + 1}</span>
+                                <span className="text-white">{set.reps}</span>
+                                <span className="text-white">{set.weight}kg</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {isConfirming ? (
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-red-400 text-xs">Delete this workout?</span>
+                        <button
+                          onClick={() => void handleDelete(session._id)}
+                          disabled={deleting}
+                          className="text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 px-3 py-1 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {deleting ? "..." : "Yes, delete"}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="text-xs text-zinc-500 hover:text-zinc-300 px-2 py-1 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteId(session._id)}
+                        className="text-xs text-zinc-600 hover:text-red-400 transition-colors pt-1"
+                      >
+                        Delete workout
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-zinc-500 text-sm">No workouts recorded yet.</p>
+      )}
     </div>
   );
 }
@@ -326,46 +477,8 @@ export function Progress() {
         )}
       </div>
 
-      {/* Recent Workouts Log */}
-      {filteredSessions && filteredSessions.length > 0 && (
-        <div className="bg-zinc-800/60 rounded-xl p-4 border border-zinc-700/50">
-          <h3 className="text-white font-medium mb-4">Recent Workouts</h3>
-          <div className="space-y-3">
-            {filteredSessions.slice(0, 5).map(({ session, logs }) => (
-              <div
-                key={session._id}
-                className="border-b border-zinc-700/50 last:border-0 pb-3 last:pb-0"
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-zinc-300 text-sm font-medium">
-                    Day {session.day} &middot; {session.date}
-                  </span>
-                  <span className="text-zinc-500 text-xs">
-                    {logs.length} exercises
-                  </span>
-                </div>
-                {session.comment && (
-                  <p className="text-zinc-500 text-xs italic mb-1">
-                    {session.comment}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-1">
-                  {logs.map((log) => (
-                    <span
-                      key={log._id}
-                      className="text-xs bg-zinc-700/50 text-zinc-400 px-2 py-0.5 rounded"
-                    >
-                      {log.exerciseName.length > 20
-                        ? log.exerciseName.substring(0, 20) + "..."
-                        : log.exerciseName}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Workout History with details & delete */}
+      <WorkoutHistory />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { getExercisesForDay, type Exercise } from "../data/exercises";
@@ -154,8 +154,25 @@ interface ExerciseFormData {
 }
 
 export function WorkoutTracker() {
-  const [day, setDay] = useState<1 | 2>(1);
-  const [comment, setComment] = useState("");
+  const getDayFromHash = (): 1 | 2 => {
+    const hash = window.location.hash;
+    return hash.includes("back") ? 2 : 1;
+  };
+
+  const STORAGE_KEY = "workout-draft";
+
+  const loadDraft = (): { formData: Record<string, ExerciseFormData>; comment: string; day: 1 | 2 } | null => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const draft = loadDraft();
+  const [day, setDay] = useState<1 | 2>(draft?.day ?? getDayFromHash());
+  const [comment, setComment] = useState(draft?.comment ?? "");
   const [videoExercise, setVideoExercise] = useState<Exercise | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -164,8 +181,11 @@ export function WorkoutTracker() {
 
   const exercises = getExercisesForDay(day);
   const latestSession = useQuery(api.workouts.getLatestSession, { day });
-  const personalRecords = useQuery(api.workouts.getPersonalRecords, { day });
+  const personalRecordsRaw = useQuery(api.workouts.getPersonalRecords, { day });
   const saveWorkout = useMutation(api.workouts.saveWorkout);
+
+  const getPR = (exerciseName: string) =>
+    personalRecordsRaw?.find((pr) => pr.exerciseName === exerciseName);
 
   const getLastSets = (exerciseName: string) => {
     if (!latestSession?.logs) return null;
@@ -174,12 +194,27 @@ export function WorkoutTracker() {
   };
 
   const [formData, setFormData] = useState<Record<string, ExerciseFormData>>(
-    {}
+    draft?.formData ?? {}
   );
 
   const getFormData = (exerciseName: string): ExerciseFormData => {
     if (formData[exerciseName]) return formData[exerciseName];
     return { sets: [{ reps: "", weight: "" }, { reps: "", weight: "" }, { reps: "", weight: "" }] };
+  };
+
+  // Persist draft to localStorage
+  const draftPausedRef = useRef(false);
+
+  useEffect(() => {
+    if (draftPausedRef.current) return;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ formData, comment, day }));
+  }, [formData, comment, day]);
+
+  const clearDraft = () => {
+    draftPausedRef.current = true;
+    localStorage.removeItem(STORAGE_KEY);
+    // Resume saving on next tick (after state updates settle)
+    setTimeout(() => { draftPausedRef.current = false; }, 0);
   };
 
   const startRestTimer = () => {
@@ -204,7 +239,7 @@ export function WorkoutTracker() {
 
   // Check for PRs in current form data
   const checkPR = (exerciseName: string, setIndex: number): { weight: boolean; reps: boolean } => {
-    const pr = personalRecords?.[exerciseName];
+    const pr = getPR(exerciseName);
     if (!pr) return { weight: false, reps: false };
 
     const current = getFormData(exerciseName).sets[setIndex];
@@ -241,7 +276,7 @@ export function WorkoutTracker() {
       // Detect PRs before saving
       const detectedPRs: string[] = [];
       for (const entry of exerciseEntries) {
-        const pr = personalRecords?.[entry.exerciseName];
+        const pr = getPR(entry.exerciseName);
         if (!pr) continue;
         for (const set of entry.sets) {
           if (set.weight > pr.maxWeight || set.reps > pr.maxReps) {
@@ -262,6 +297,7 @@ export function WorkoutTracker() {
       setFormData({});
       setComment("");
       setShowTimer(false);
+      clearDraft();
       setSaved(true);
       setTimeout(() => {
         setSaved(false);
@@ -272,14 +308,27 @@ export function WorkoutTracker() {
     }
   };
 
-  const handleDayChange = (newDay: 1 | 2) => {
+  const handleDayChange = useCallback((newDay: 1 | 2) => {
     setDay(newDay);
     setFormData({});
     setComment("");
     setSaved(false);
     setShowTimer(false);
     setNewPRs([]);
-  };
+    clearDraft();
+    window.location.hash = `workouts-${newDay === 1 ? "front" : "back"}`;
+  }, []);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash;
+      if (hash.includes("workouts")) {
+        setDay(hash.includes("back") ? 2 : 1);
+      }
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -318,7 +367,7 @@ export function WorkoutTracker() {
         {exercises.map((exercise) => {
           const lastSets = getLastSets(exercise.name);
           const current = getFormData(exercise.name);
-          const pr = personalRecords?.[exercise.name];
+          const pr = getPR(exercise.name);
 
           return (
             <div
@@ -344,10 +393,10 @@ export function WorkoutTracker() {
 
               {/* Set inputs with last stats inline */}
               <div className="space-y-2">
-                <div className="grid grid-cols-[auto_1fr_1fr] gap-2 text-xs text-zinc-500 px-1">
+                <div className={`grid gap-2 text-xs text-zinc-500 px-1 ${exercise.repsOnly ? "grid-cols-[auto_1fr]" : "grid-cols-[auto_1fr_1fr]"}`}>
                   <span className="w-8">Set</span>
                   <span>Reps</span>
-                  <span>Weight (kg)</span>
+                  {!exercise.repsOnly && <span>Weight (kg)</span>}
                 </div>
                 {current.sets.map((set, i) => {
                   const lastReps = lastSets?.[i]?.reps;
@@ -355,7 +404,7 @@ export function WorkoutTracker() {
                   const prCheck = checkPR(exercise.name, i);
                   return (
                     <div key={i}>
-                      <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                      <div className={`grid gap-2 items-center ${exercise.repsOnly ? "grid-cols-[auto_1fr]" : "grid-cols-[auto_1fr_1fr]"}`}>
                         <span className="text-zinc-500 text-sm w-8 text-center">
                           {i + 1}
                         </span>
@@ -379,30 +428,32 @@ export function WorkoutTracker() {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            placeholder={lastWeight?.toString() ?? "0"}
-                            value={set.weight}
-                            onChange={(e) =>
-                              updateSet(exercise.name, i, "weight", e.target.value)
-                            }
-                            className={`w-full bg-zinc-700/50 border rounded-lg px-3 py-2 text-white text-sm placeholder:text-zinc-600 focus:outline-none transition-colors ${
-                              prCheck.weight
-                                ? "border-amber-400/70 bg-amber-400/5"
-                                : "border-zinc-600/50 focus:border-violet-500/50"
-                            }`}
-                          />
-                          {lastWeight != null && (
-                            <span className="text-zinc-500 text-xs whitespace-nowrap">
-                              {lastWeight}
-                            </span>
-                          )}
-                        </div>
+                        {!exercise.repsOnly && (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              placeholder={lastWeight?.toString() ?? "0"}
+                              value={set.weight}
+                              onChange={(e) =>
+                                updateSet(exercise.name, i, "weight", e.target.value)
+                              }
+                              className={`w-full bg-zinc-700/50 border rounded-lg px-3 py-2 text-white text-sm placeholder:text-zinc-600 focus:outline-none transition-colors ${
+                                prCheck.weight
+                                  ? "border-amber-400/70 bg-amber-400/5"
+                                  : "border-zinc-600/50 focus:border-violet-500/50"
+                              }`}
+                            />
+                            {lastWeight != null && (
+                              <span className="text-zinc-500 text-xs whitespace-nowrap">
+                                {lastWeight}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       {(prCheck.weight || prCheck.reps) && (
                         <div className="flex gap-1.5 mt-1 ml-10">
-                          {prCheck.weight && <PRBadge type="weight" />}
+                          {!exercise.repsOnly && prCheck.weight && <PRBadge type="weight" />}
                           {prCheck.reps && <PRBadge type="reps" />}
                         </div>
                       )}

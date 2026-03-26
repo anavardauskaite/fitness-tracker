@@ -2,32 +2,34 @@ export interface Exercise {
   name: string;
   videoUrls: string[];
   notes?: string;
+  repsOnly?: boolean;
 }
 
 export const DAY_1_EXERCISES: Exercise[] = [
   {
-    name: "Atsispaudimai",
+    name: "Push ups",
     videoUrls: ["https://www.youtube.com/shorts/ptvFBAycQy0"],
     notes:
       "Su pilnu, lėtu nusileidimu žemyn. Pakilti nuo kelių ir alkūnes galima šiek tiek labiau atvesti į šonus.",
+    repsOnly: true,
   },
   {
-    name: "Negyvas vabalas",
+    name: "Dead bug",
     videoUrls: ["https://www.youtube.com/watch?v=o4GKiEoYClI"],
   },
   {
-    name: "Pec fly rankų suvedimas su hanteliais",
+    name: "Pec Fly (dumbbell)",
     videoUrls: [
       "https://www.youtube.com/shorts/a9vQ_hwIksU",
       "https://www.youtube.com/shorts/rk8YayRoTRQ",
     ],
   },
   {
-    name: "Spaudimas pečiams su hanteliais",
+    name: "Shoulder press (dumbbell)",
     videoUrls: ["https://www.youtube.com/shorts/FghebqCF_o8"],
   },
   {
-    name: "Rankų tiesimas tricepsui",
+    name: "Cable Triceps Extension",
     videoUrls: ["https://www.youtube.com/shorts/4NWWB0f0vzQ"],
   },
   {
@@ -35,7 +37,7 @@ export const DAY_1_EXERCISES: Exercise[] = [
     videoUrls: ["https://www.youtube.com/shorts/vHbZkqQLuw0"],
   },
   {
-    name: "Kojų tiesimas",
+    name: "Leg extension",
     videoUrls: ["https://youtube.com/shorts/uM86QE59Tgc"],
   },
   {
@@ -50,47 +52,47 @@ export const DAY_2_EXERCISES: Exercise[] = [
     videoUrls: ["https://www.youtube.com/shorts/bEKj1qsoPTY"],
   },
   {
-    name: "Plaukimas",
+    name: "Lat Pulldown (on stomach)",
     videoUrls: ["https://www.youtube.com/shorts/O62CXinmDW0"],
-    notes:
-      "Atliekame vieną ranką tiesiant, kitą traukiant prie šono, su mažu pasisukimu į sulenktos rankos pusę.",
   },
   {
-    name: "Dubens kėlimas",
+    name: "Glute bridge",
     videoUrls: ["https://www.youtube.com/shorts/tv9dFw4zPA0"],
-    notes: "Su guma ant kelių.",
+    notes: "With resistant band on knees.",
+    repsOnly: true,
   },
   {
-    name: "Pritūpimai su žingsniu į šoną",
+    name: "Squat Step Outs",
     videoUrls: ["https://www.youtube.com/shorts/IHf66Y_3BKk"],
-    notes: "Su guma ant kelių.",
+    notes: "With resistant band on knees.",
+    repsOnly: true,
   },
   {
-    name: "Prisitraukimai treniruoklyje",
+    name: "Assisted pull up",
     videoUrls: ["https://www.youtube.com/shorts/WLzut1ZxxTY"],
   },
   {
-    name: "Horizontali trauka nugarai su maišu",
+    name: "Sandbag Row",
     videoUrls: ["https://www.youtube.com/shorts/GYVMUoXtpR4"],
   },
   {
-    name: "Atvedimas kojoms į šalis treniruoklyje",
+    name: "Hip Abduction",
     videoUrls: [
       "https://www.youtube.com/watch?v=9vwOZFBVYjM",
       "https://www.youtube.com/shorts/ExbqB6rOJ98",
     ],
   },
   {
-    name: "Pritūpimai treniruoklyje",
+    name: "Hack Squat",
     videoUrls: ["https://www.youtube.com/watch?v=eVexZxVN6kc"],
   },
   {
-    name: "Dubens kėlimas viena koja",
+    name: "Single Leg Hip Thrust",
     videoUrls: [
       "https://www.youtube.com/shorts/GjLaHYQE0C4",
       "https://www.youtube.com/shorts/_i6qpcI1Nw4",
     ],
-    notes: "Arba su štanga.",
+    repsOnly: true,
   },
 ];
 

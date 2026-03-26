@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Authenticated, Unauthenticated } from "convex/react";
@@ -11,6 +11,13 @@ import { Progress } from "./components/Progress";
 import { RunningTracker } from "./components/RunningTracker";
 
 type Tab = "workouts" | "running" | "body" | "progress";
+const VALID_TABS: Tab[] = ["workouts", "running", "body", "progress"];
+
+function getTabFromHash(): Tab {
+  const hash = window.location.hash.slice(1);
+  if (hash.startsWith("workouts")) return "workouts";
+  return VALID_TABS.includes(hash as Tab) ? (hash as Tab) : "workouts";
+}
 
 export default function App() {
   return (
@@ -30,8 +37,19 @@ export default function App() {
 }
 
 function MainApp() {
-  const [activeTab, setActiveTab] = useState<Tab>("workouts");
+  const [activeTab, setActiveTab] = useState<Tab>(getTabFromHash);
   const { signOut } = useAuthActions();
+
+  const handleTabChange = useCallback((tab: Tab) => {
+    setActiveTab(tab);
+    window.location.hash = tab;
+  }, []);
+
+  useEffect(() => {
+    const onHashChange = () => setActiveTab(getTabFromHash());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
@@ -53,7 +71,7 @@ function MainApp() {
         </button>
       </div>
 
-      <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+      <Navigation activeTab={activeTab} onTabChange={handleTabChange} />
 
       {activeTab === "workouts" && <WorkoutTracker />}
       {activeTab === "running" && <RunningTracker />}
