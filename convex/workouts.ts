@@ -1,16 +1,17 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const getLatestSession = query({
   args: { day: v.number() },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
 
     const session = await ctx.db
       .query("workoutSessions")
       .withIndex("by_userId_and_day", (q) =>
-        q.eq("userId", identity.tokenIdentifier).eq("day", args.day)
+        q.eq("userId", userId).eq("day", args.day),
       )
       .order("desc")
       .first();
@@ -29,13 +30,13 @@ export const getLatestSession = query({
 export const getSessionHistory = query({
   args: { day: v.number() },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
 
     const sessions = await ctx.db
       .query("workoutSessions")
       .withIndex("by_userId_and_day", (q) =>
-        q.eq("userId", identity.tokenIdentifier).eq("day", args.day)
+        q.eq("userId", userId).eq("day", args.day),
       )
       .order("desc")
       .take(50);
@@ -64,17 +65,17 @@ export const saveWorkout = mutation({
           v.object({
             reps: v.number(),
             weight: v.number(),
-          })
+          }),
         ),
-      })
+      }),
     ),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
     const sessionId = await ctx.db.insert("workoutSessions", {
-      userId: identity.tokenIdentifier,
+      userId,
       day: args.day,
       date: args.date,
       comment: args.comment,
@@ -83,7 +84,7 @@ export const saveWorkout = mutation({
     for (const exercise of args.exercises) {
       await ctx.db.insert("exerciseLogs", {
         sessionId,
-        userId: identity.tokenIdentifier,
+        userId,
         exerciseName: exercise.exerciseName,
         sets: exercise.sets,
       });
@@ -96,11 +97,11 @@ export const saveWorkout = mutation({
 export const deleteSession = mutation({
   args: { sessionId: v.id("workoutSessions") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
     const session = await ctx.db.get(args.sessionId);
-    if (!session || session.userId !== identity.tokenIdentifier) {
+    if (!session || session.userId !== userId) {
       throw new Error("Session not found");
     }
 
@@ -121,14 +122,14 @@ export const deleteSession = mutation({
 export const getPersonalRecords = query({
   args: { day: v.number() },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
 
     // Get all sessions for this day
     const sessions = await ctx.db
       .query("workoutSessions")
       .withIndex("by_userId_and_day", (q) =>
-        q.eq("userId", identity.tokenIdentifier).eq("day", args.day)
+        q.eq("userId", userId).eq("day", args.day),
       )
       .take(200);
 
@@ -143,7 +144,10 @@ export const getPersonalRecords = query({
       for (const log of logs) {
         for (const set of log.sets) {
           if (!prs[log.exerciseName]) {
-            prs[log.exerciseName] = { maxWeight: set.weight, maxReps: set.reps };
+            prs[log.exerciseName] = {
+              maxWeight: set.weight,
+              maxReps: set.reps,
+            };
           } else {
             if (set.weight > prs[log.exerciseName].maxWeight) {
               prs[log.exerciseName].maxWeight = set.weight;
@@ -168,15 +172,13 @@ export const getPersonalRecords = query({
 export const getExerciseHistory = query({
   args: { exerciseName: v.string() },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
 
     const logs = await ctx.db
       .query("exerciseLogs")
       .withIndex("by_userId_and_exerciseName", (q) =>
-        q
-          .eq("userId", identity.tokenIdentifier)
-          .eq("exerciseName", args.exerciseName)
+        q.eq("userId", userId).eq("exerciseName", args.exerciseName),
       )
       .order("desc")
       .take(20);

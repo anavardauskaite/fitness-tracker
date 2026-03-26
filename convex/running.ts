@@ -1,17 +1,16 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const getAll = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
 
     return await ctx.db
       .query("runningLogs")
-      .withIndex("by_userId", (q) =>
-        q.eq("userId", identity.tokenIdentifier)
-      )
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
       .take(100);
   },
@@ -20,14 +19,12 @@ export const getAll = query({
 export const getLatest = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
 
     return await ctx.db
       .query("runningLogs")
-      .withIndex("by_userId", (q) =>
-        q.eq("userId", identity.tokenIdentifier)
-      )
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
       .first();
   },
@@ -41,12 +38,9 @@ export const save = mutation({
     avgHeartRate: v.number(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
-    return await ctx.db.insert("runningLogs", {
-      userId: identity.tokenIdentifier,
-      ...args,
-    });
+    return await ctx.db.insert("runningLogs", { userId, ...args });
   },
 });
